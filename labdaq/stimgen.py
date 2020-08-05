@@ -1,4 +1,4 @@
-import numpy as np
+from .utils import *
 
 def stimgen_subwaveform(duration,
                         code,
