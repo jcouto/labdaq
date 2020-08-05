@@ -146,4 +146,3 @@ class IOTask():
     def close(self):
         self.task_ai.close()
         self.task_ao.close()
-
