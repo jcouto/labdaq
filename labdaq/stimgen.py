@@ -21,14 +21,27 @@ def stimgen_subwaveform(duration,
        - 2 - Ornstein-Uhlenbeck process | p1 - amp | p2 - sigma | p3 - tau
        - 3 - Sine waveform | p1 - amp | p2 - freq | p3 - phase
     '''
+    N = int(duration*srate)
     if code == 1:
         # DC constant value waveform
-        swave = np.ones(int(duration*srate))*p1
+        swave = np.ones(N)*p1
     elif code == 2:
-        swave = np.random.randn(int(duration*srate))
+        mu = p1
+        sigma = p2
+
+        tau = p3
+        dt = 1./srate
+        if tau == 0:
+            tau = dt
+        t = np.arange(N)*dt
+        sigma_bis = sigma * np.sqrt(2. / tau)
+        sqrtdt = np.sqrt(dt)
+        swave = np.zeros(N)
+        for i in range(N - 1):
+            swave[i + 1] = swave[i] + dt * (-(swave[i] - mu) / tau) + sigma_bis * sqrtdt * np.random.randn()
     elif code == 3:
         # Sine wave
-        x = np.arange(int(duration*srate))
+        x = np.arange(N)
         swave = p1*np.sin(((p2*2*np.pi)/srate)*x + ((p3*2*np.pi)))
     else:
         raise ValueError('Code {0} - not implemented.'.format(code))
