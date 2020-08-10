@@ -80,7 +80,7 @@ class IOTask():
                     min_val = self.chaninfo[ichan]['range'][0],
                     max_val = self.chaninfo[ichan]['range'][1])
 
-    def load(self,stim,use_ao_trigger=False):
+    def load(self,stim,use_ao_trigger=True):
         # check if the modes are up to date
         self._check_modes()
         aoconversion = self._get_conversion(False)
@@ -100,22 +100,22 @@ class IOTask():
         if not hasattr(self,'task_axon200B_mode'):
             self.mode = None
         mm = int(np.round(self.task_axon200B_mode.read()))
-        if mm in [2,1,4]:
+        if mm in [2,1]:
             self.mode = 'cc'
         elif mm == 3:
             self.mode = 'cc=0'
-        elif mm in [4,5]:
+        elif mm in [4,6]:
             self.mode = 'vc'
         else:
             self.mode = None
         # update mode for each ai or ao
         if not self.mode is None:
-            for i,ichan in enumerate(self.self.output_chan_index):
+            for i,ichan in enumerate(self.output_chan_index):
                 modes = self.chaninfo[ichan]['modes']
                 for m in modes: 
                     if m in self.mode:
                         self.task_ao_modes[i] = m
-            for i,ichan in enumerate(self.self.input_chan_index):
+            for i,ichan in enumerate(self.input_chan_index):
                 modes = self.chaninfo[ichan]['modes']
                 for m in modes: 
                     if m in self.mode:
@@ -127,7 +127,6 @@ class IOTask():
         self.task_ai.start()
         self.task_ao.start()
         if blocking:
-            print(self.task_ai.timing.samp_clk_src)
             data = self.task_ai.read(number_of_samples_per_channel = nidaqmx.constants. READ_ALL_AVAILABLE)
             self.task_ao.wait_until_done()
             self.task_ai.wait_until_done()
@@ -137,7 +136,7 @@ class IOTask():
         else:
             return None
 
-    def _get_conversion(self,get_ai = True):
+    def _get_conversion(self,get_ai = False):
         if get_ai:
             return np.array([self.modeinfo[m]['input_conversion'] for m in self.task_ai_modes])
         else:
