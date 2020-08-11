@@ -1,5 +1,5 @@
+from .utils import *
 import nidaqmx
-import numpy as np
 
 
 class IOTask():
@@ -18,8 +18,10 @@ class IOTask():
     def _parse_channels(self):
         chantypes = np.array([c['type'] for c in self.chaninfo])
         self.output_chan_index = np.where(chantypes == 'analog_output')[0]
+        self.digioutput_chan_index = np.where(chantypes == 'digital_output')[0]
         self.input_chan_index = np.where(chantypes == 'analog_input')[0]
         self.n_output_chan = len(self.output_chan_index)
+        self.n_digioutput_chan = len(self.digioutput_chan_index)
         self.n_input_chan = len(self.input_chan_index)
         # Check of there is a special channel type: 'axon200B_mode'
         self.axon200B_mode = np.where(chantypes == 'axon200B_mode')[0]
@@ -28,7 +30,9 @@ class IOTask():
     def _create_tasks(self):
         self.task_ai = None
         self.task_ao = None
+        self.task_do = None
         self.task_ao_modes = []
+        self.task_do_modes = []
         self.task_ai_modes = []
         if self.n_output_chan:
             for ichan in self.output_chan_index:
@@ -47,6 +51,16 @@ class IOTask():
                     self.task_ao_modes.append(self.chaninfo[ichan]['modes'][0])
                     if 'acq_rate' in self.chaninfo[ichan].keys():
                         self.srate = self.chaninfo[ichan]['acq_rate']
+        if len(self.digioutput_chan_index):
+            for ichan in self.digioutput_chan_index:
+                dev = self.chaninfo[ichan]['device']
+                if 'ni:' in dev:
+                    dev = dev.strip('ni:')
+                    chanstr = dev+'/'+self.chaninfo[ichan]['channel']
+                    if self.task_do is None:
+                        self.task_do = nidaqmx.Task()
+                    self.task_do.do_channels.add_do_chan(chanstr)
+                    self.task_do_modes.append(self.chaninfo[ichan]['modes'][0])
         if self.n_input_chan:
             for ichan in self.input_chan_index:
                 dev = self.chaninfo[ichan]['device']
@@ -80,22 +94,51 @@ class IOTask():
                     min_val = self.chaninfo[ichan]['range'][0],
                     max_val = self.chaninfo[ichan]['range'][1])
 
-    def load(self,stim,use_ao_trigger=True):
+    def load(self,stim,digstim = None,use_ao_trigger=True):
         # check if the modes are up to date
+        assert type(stim) is list, 'Stim needs to be a list of numpy arrays'
         self._check_modes()
+        self.nsamples = np.max([s.shape for s in stim if not s is None])
         aoconversion = self._get_conversion(False)
-        self.nsamples = max(stim.shape) # this is not very good
         if not self.task_ai is None:
             self.task_ai.timing.cfg_samp_clk_timing(
                 rate = self.srate,
                 samps_per_chan = self.nsamples)
-        if use_ao_trigger:
-            self.task_ai.triggers.start_trigger.cfg_dig_edge_start_trig('ao/StartTrigger')
+        else:
+            if use_ao_trigger:
+                self.task_ai.triggers.start_trigger.cfg_dig_edge_start_trig('ao/StartTrigger')
         if not self.task_ao is None:
             self.task_ao.timing.cfg_samp_clk_timing(rate = self.srate,
                                                     samps_per_chan = self.nsamples)
+            self.task_ao.export_signals.export_signal(nidaqmx.constants.Signal.SAMPLE_CLOCK, 'PFI0')
             # Take care of the conversions
-            self.task_ao.write((stim*aoconversion).astype(np.float32), auto_start=False)
+            stims = np.zeros((self.n_output_chan,self.nsamples),dtype = np.float32)
+            # Fix the analog output conversions
+            for i in range(self.n_output_chan):
+                if i < len(stim):
+                    if stim[i] is None:
+                        continue
+                    if not len(stim[i]):
+                        continue
+                    stims[i] = stim[i]*aoconversion[i]
+            self.task_ao.write(stims, auto_start=False)
+        if not digstim is None:
+            if not self.task_do is None:
+                self.task_do.timing.cfg_samp_clk_timing(rate = self.srate,
+                                                        source = 'PFI0',
+                                                        samps_per_chan = self.nsamples)
+                #self.task_do.triggers.start_trigger.cfg_dig_edge_start_trig('PFI0')
+
+            digstims = np.zeros((self.n_digioutput_chan,self.nsamples),dtype = bool)
+            for i in range(self.n_digioutput_chan):
+                if i < len(digstim):
+                    if digstim[i] is None:
+                        continue
+                    if not len(digstim[i]):
+                        continue
+                    digstims[i] = digstim[i]
+            self.task_do.write(digstim[0]!=1, auto_start=False)
+                    
     def _check_modes(self):
         if not hasattr(self,'task_axon200B_mode'):
             self.mode = None
@@ -125,13 +168,22 @@ class IOTask():
         self._check_modes()
         aiconversion = self._get_conversion(True)
         self.task_ai.start()
-        self.task_ao.start()
+        if not self.task_ao is None:
+            self.task_ao.start()
+        if not self.task_do is None:
+            self.task_do.start()
         if blocking:
             data = self.task_ai.read(number_of_samples_per_channel = nidaqmx.constants. READ_ALL_AVAILABLE)
-            self.task_ao.wait_until_done()
-            self.task_ai.wait_until_done()
-            self.task_ai.stop()
-            self.task_ao.stop()
+            if not self.task_ai is None:
+                self.task_ai.wait_until_done()
+                self.task_ai.stop()
+            if not self.task_ao is None:
+                self.task_ao.wait_until_done()
+                self.task_ao.stop()
+            if not self.task_do is None:
+                self.task_do.wait_until_done()
+                self.task_do.stop()
+
             return np.array(data)*aiconversion
         else:
             return None

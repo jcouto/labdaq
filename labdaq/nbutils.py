@@ -12,7 +12,7 @@ def nb_seal_test(task,interval=500,amp=[10,200],**kwargs):
     pulse = np.hstack([np.zeros(int(0.05*srate)),amplitude*np.ones(int(0.05*srate)),np.zeros(int(0.05*srate))])    
     time = np.arange(len(pulse))/srate
     fig = plt.gcf()
-    task.load(pulse)
+    task.load([pulse])
     data = task.run()
     im = plt.plot(time,data,**kwargs)[0]
     
@@ -23,7 +23,7 @@ def nb_seal_test(task,interval=500,amp=[10,200],**kwargs):
             amplitude = amp[1]
         pulse = np.hstack([np.zeros(int(0.05*srate)),amplitude*np.ones(int(0.05*srate)),np.zeros(int(0.05*srate))])    
 
-        task.load(pulse)
+        task.load([pulse])
         data = task.run()
         dd = np.array(data)
         im.set_ydata(dd)
