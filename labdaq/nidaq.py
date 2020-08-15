@@ -186,10 +186,10 @@ class IOTask():
         #self.task_ao.ao_channels.all.ao_dac_ref_conn_to_gnd = False
 
         if blocking:
-            self.data =np.zeros((self.n_input_chan,self.nsamples),dtype=np.float64)
+            self.data = np.zeros((self.n_input_chan,self.nsamples),dtype=np.float64)
             self.reader.read_many_sample(self.data,
                                          number_of_samples_per_channel = self.nsamples,
-                                          timeout = self.nsamples/self.srate + 1)
+                                         timeout = self.nsamples/self.srate + 1)
             if not self.task_ai is None:
                 self.task_ai.wait_until_done()
                 self.task_ai.stop()
@@ -200,7 +200,7 @@ class IOTask():
                 self.task_do.wait_until_done()
                 self.task_do.stop()
 
-            return np.array(data)*aiconversion
+            return np.array(self.data)*aiconversion
         else:
             return None
 

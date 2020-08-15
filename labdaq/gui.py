@@ -60,7 +60,6 @@ class SealTestWidget(QWidget):
         l = QFormLayout()
         w.setLayout(l)
         self.startstopw = QCheckBox()
-        self.startstopw.stateChanged.connect(self.start_stop)
         self.startstopw.setChecked(True)
         l.addRow('Active',self.startstopw)
         lay.addWidget(w,0,0,1,1)
@@ -68,6 +67,7 @@ class SealTestWidget(QWidget):
         self.timer = QTimer()
         self.timer.timeout.connect(self._update)
         self.timer.start(1000.*(self.duration*3))
+        self.startstopw.stateChanged.connect(self.start_stop)
 
     def start_stop(self):
         if self.startstopw.isChecked():
@@ -89,7 +89,10 @@ class SealTestWidget(QWidget):
                 [self.duration,1,0,0,0,0,0,0,0,0]]
         
         return stimgen_waveform(pulse)
-
+    def closeEvent(self,event):
+        self.timer.stop()
+        self.task.close()
+        event.accept()
     def _update(self):
         self.set_amp()
         self.task.load([self.get_pulse()])
