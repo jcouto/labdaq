@@ -1,6 +1,7 @@
 from .utils import *
 import nidaqmx
-
+from nidaqmx.stream_writers import AnalogMultiChannelWriter
+from nidaqmx.stream_readers import AnalogMultiChannelReader
 
 class IOTask():
     # This is only nidaq for now.
@@ -98,21 +99,27 @@ class IOTask():
         # check if the modes are up to date
         assert type(stim) is list, 'Stim needs to be a list of numpy arrays'
         self._check_modes()
-        self.nsamples = np.max([s.shape for s in stim if not s is None])
+        self.nsamples = np.max([np.max(s.shape) for s in stim if not s is None])
         aoconversion = self._get_conversion(False)
-        if not self.task_ai is None:
+        if not self.task_ai is None and self.task_ao is None:
             self.task_ai.timing.cfg_samp_clk_timing(
                 rate = self.srate,
                 samps_per_chan = self.nsamples)
-        else:
-            if use_ao_trigger:
-                self.task_ai.triggers.start_trigger.cfg_dig_edge_start_trig('ao/StartTrigger')
+                
         if not self.task_ao is None:
             self.task_ao.timing.cfg_samp_clk_timing(rate = self.srate,
                                                     samps_per_chan = self.nsamples)
             self.task_ao.export_signals.export_signal(nidaqmx.constants.Signal.SAMPLE_CLOCK, 'PFI0')
+            if not self.task_ai is None:
+                if use_ao_trigger:
+                    self.task_ai.triggers.start_trigger.cfg_dig_edge_start_trig('ao/StartTrigger')
+
+                    self.task_ai.timing.cfg_samp_clk_timing(rate = self.srate,
+                                                            source = 'PFI0',
+                                                            samps_per_chan = self.nsamples)
+
             # Take care of the conversions
-            stims = np.zeros((self.n_output_chan,self.nsamples),dtype = np.float32)
+            stims = np.zeros((self.n_output_chan,self.nsamples),dtype = np.float64)
             # Fix the analog output conversions
             for i in range(self.n_output_chan):
                 if i < len(stim):
@@ -121,7 +128,10 @@ class IOTask():
                     if not len(stim[i]):
                         continue
                     stims[i] = stim[i]*aoconversion[i]
-            self.task_ao.write(stims, auto_start=False)
+            self.writer = AnalogMultiChannelWriter(self.task_ao.out_stream)
+            self.reader = AnalogMultiChannelReader(self.task_ai.in_stream)
+            self.writer.write_many_sample(stims)
+            #self.task_ao.write(stims, auto_start=False)
         if not digstim is None:
             if not self.task_do is None:
                 self.task_do.timing.cfg_samp_clk_timing(rate = self.srate,
@@ -138,7 +148,6 @@ class IOTask():
                         continue
                     digstims[i] = digstim[i]
             self.task_do.write(digstim[0]!=1, auto_start=False)
-                    
     def _check_modes(self):
         if not hasattr(self,'task_axon200B_mode'):
             self.mode = None
@@ -167,13 +176,20 @@ class IOTask():
     def run(self,blocking = True):
         self._check_modes()
         aiconversion = self._get_conversion(True)
+        #self.task_ao.ao_channels.all.ao_dac_ref_allow_conn_to_gnd = True
+
         self.task_ai.start()
         if not self.task_ao is None:
             self.task_ao.start()
         if not self.task_do is None:
             self.task_do.start()
+        #self.task_ao.ao_channels.all.ao_dac_ref_conn_to_gnd = False
+
         if blocking:
-            data = self.task_ai.read(number_of_samples_per_channel = nidaqmx.constants. READ_ALL_AVAILABLE)
+            self.data =np.zeros((self.n_input_chan,self.nsamples),dtype=np.float64)
+            self.reader.read_many_sample(self.data,
+                                         number_of_samples_per_channel = self.nsamples,
+                                          timeout = self.nsamples/self.srate + 1)
             if not self.task_ai is None:
                 self.task_ai.wait_until_done()
                 self.task_ai.stop()

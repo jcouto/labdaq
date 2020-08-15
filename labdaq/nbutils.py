@@ -4,11 +4,15 @@ def nb_seal_test(task,interval=500,amp=[10,200],**kwargs):
     import pylab as plt
     from matplotlib.animation import FuncAnimation
     plt.matplotlib.style.use('ggplot')
-    srate = task.srate    
-    if task.mode == 'vc':
-        amplitude = amp[0]
+    srate = task.srate
+    if task.mode is None:
+        amplitude = 0
     else:
-        amplitude = amp[1]
+        if task.mode == 'vc':
+            amplitude = amp[0]
+        else:
+            amplitude = amp[1]
+            
     pulse = np.hstack([np.zeros(int(0.05*srate)),amplitude*np.ones(int(0.05*srate)),np.zeros(int(0.05*srate))])    
     time = np.arange(len(pulse))/srate
     fig = plt.gcf()
@@ -21,8 +25,9 @@ def nb_seal_test(task,interval=500,amp=[10,200],**kwargs):
             amplitude = amp[0]
         else:
             amplitude = amp[1]
-        pulse = np.hstack([np.zeros(int(0.05*srate)),amplitude*np.ones(int(0.05*srate)),np.zeros(int(0.05*srate))])    
-
+        pulse = np.hstack([np.zeros(int(0.05*srate)),
+                           amplitude*np.ones(int(0.05*srate)),
+                           np.zeros(int(0.05*srate))])
         task.load([pulse])
         data = task.run()
         dd = np.array(data)

@@ -23,6 +23,7 @@ setup(
   entry_points = {
         'console_scripts': [
           'labdaq = labdaq.cli:main',
+          'labdaq-sealtest = labdaq.gui:main',
         ]
         },
     )
