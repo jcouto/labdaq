@@ -161,16 +161,16 @@ class SealTestWidget(QWidget):
         offset = np.nanmean(data[0,:int(self.duration*self.srate)])
         post = np.nanmean(data[0,int(1.1*self.duration*self.srate):int(
             1.9*self.duration*self.srate)])
-        if self.task.mode == 'vc':
-            R = (self.amplitude*1e-3/((post-offset)*1e-12))/1e6  
-            self.offsetw.setText('{0:.2f} mV'.format(offset))
-            self.modew.setText('<b> {0} </b>'.format('current clamp'))
-        else:
-            R = (self.amplitude*1e-3/((post-offset)*1e-12))/1e10  
-            self.modew.setText('<b> {0} </b>'.format('voltage clamp'))
-            self.offsetw.setText('{0:.2f} pA'.format(offset))
-        self.resw.setText('{0:.2f} MOhm'.format(R))
-
+        if not self.task.mode is None:
+            if self.task.mode == 'vc':
+                R = (self.amplitude*1e-3/((post-offset)*1e-12))/1e10  
+                self.modew.setText('<b> {0} </b>'.format('voltage clamp'))
+                self.offsetw.setText('{0:.2f} pA'.format(offset))
+            else:
+                R = (self.amplitude*1e-3/((post-offset)*1e-12))/1e6  
+                self.offsetw.setText('{0:.2f} mV'.format(offset))
+                self.modew.setText('<b> {0} </b>'.format('current clamp'))
+            self.resw.setText('{0:.2f} MOhm'.format(R))
         if len(data.shape) > 1:
             for i,x in enumerate(data):
                 self.plots[i].setData(x=np.arange(len(x))/self.srate,y = x)
