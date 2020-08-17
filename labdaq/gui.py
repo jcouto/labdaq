@@ -77,6 +77,7 @@ class SealTestWidget(QWidget):
         self.ccoffsetw.setMaximum(500)
         self.ccoffsetw.setMinimum(-500)
         labelcc = QLabel('CC offset [0 pA]')
+        self.R = 0
         def ccchange(value):
             self.ccoffset = value
             labelcc.setText('CC offset [<b>{0} pA</b>]'.format(value))
@@ -147,7 +148,7 @@ class SealTestWidget(QWidget):
                 [self.duration,1,self.amplitude,0,0,0,0,0,0,0],
                 [self.duration,1,0,0,0,0,0,0,0,0]]
         
-        return stimgen_waveform(pulse)+offset
+        return stimgen_waveform(pulse,srate = self.task.srate)+offset
     def closeEvent(self,event):
         self.timer.stop()
         self.task.close()
@@ -158,19 +159,20 @@ class SealTestWidget(QWidget):
         self.task.load([self.get_pulse()])
         data = self.task.run().astype(np.float32)
         
-        offset = np.nanmean(data[0,:int(self.duration*self.srate)])
+        offset = np.nanmean(data[0,:int(0.7*self.duration*self.srate)])
         post = np.nanmean(data[0,int(1.1*self.duration*self.srate):int(
             1.9*self.duration*self.srate)])
         if not self.task.mode is None:
             if self.task.mode == 'vc':
-                R = (self.amplitude*1e-3/((post-offset)*1e-12))/1e10  
+                R = (self.amplitude*1e-3/((post-offset)*1e-12))/1e6  
                 self.modew.setText('<b> {0} </b>'.format('voltage clamp'))
                 self.offsetw.setText('{0:.2f} pA'.format(offset))
             else:
-                R = (self.amplitude*1e-3/((post-offset)*1e-12))/1e6  
+                R = (self.amplitude*1e-3/((post-offset)*1e-12))/1e10  
                 self.offsetw.setText('{0:.2f} mV'.format(offset))
                 self.modew.setText('<b> {0} </b>'.format('current clamp'))
-            self.resw.setText('{0:.2f} MOhm'.format(R))
+            self.R = R #(R + self.R*29)/30.
+            self.resw.setText('{0:.2f} MOhm'.format(self.R))
         if len(data.shape) > 1:
             for i,x in enumerate(data):
                 self.plots[i].setData(x=np.arange(len(x))/self.srate,y = x)

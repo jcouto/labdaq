@@ -79,6 +79,15 @@ class IOTask():
                     self.task_ai_modes.append(self.chaninfo[ichan]['modes'][0])
                     if 'acq_rate' in self.chaninfo[ichan].keys():
                         self.srate = self.chaninfo[ichan]['acq_rate']
+        # uses the device of the first channel.
+        # this part needs to be better specified to make it more general.
+        dev = self.chaninfo[0]['device']
+        if 'ni:' in dev:
+            dev = dev.strip('ni:')
+        self.task_clock = nidaqmx.Task()
+        self.task_clock.co_channels.add_co_pulse_chan_freq(
+            dev + '/ctr0',freq = self.srate)
+        self.samp_clk_terminal = '/{0}/Ctr0InternalOutput'.format(dev)
         # This should probably be on an independent function.
         if len(self.axon200B_mode):
             ichan = self.axon200B_mode[0]
@@ -95,12 +104,13 @@ class IOTask():
                     min_val = self.chaninfo[ichan]['range'][0],
                     max_val = self.chaninfo[ichan]['range'][1])
 
-    def load(self,stim,digstim = None,use_ao_trigger=True):
+    def load(self,stim,digstim = None,use_ao_trigger=False):
         # check if the modes are up to date
         assert type(stim) is list, 'Stim needs to be a list of numpy arrays'
         self._check_modes()
         self.nsamples = np.max([np.max(s.shape) for s in stim if not s is None])
         aoconversion = self._get_conversion(False)
+            
         if not self.task_ai is None and self.task_ao is None:
             self.task_ai.timing.cfg_samp_clk_timing(
                 rate = self.srate,
@@ -128,15 +138,35 @@ class IOTask():
                     if not len(stim[i]):
                         continue
                     stims[i] = stim[i]*aoconversion[i]
+
+            if hasattr(self,'task_clock'):
+                self.task_clock.timing.cfg_implicit_timing(
+                    samps_per_chan=self.nsamples)
+                
+                if not self.task_ao is None:
+                    self.task_ao.timing.cfg_samp_clk_timing(
+                        self.srate,
+                        source=self.samp_clk_terminal,
+                        active_edge=nidaqmx.constants.Edge.RISING,
+                        samps_per_chan=self.nsamples)
+                if not self.task_ai is None:
+                    self.task_ai.timing.cfg_samp_clk_timing(
+                        self.srate,
+                        source=self.samp_clk_terminal,
+                        active_edge=nidaqmx.constants.Edge.FALLING,
+                        samps_per_chan=self.nsamples)
+
             self.writer = AnalogMultiChannelWriter(self.task_ao.out_stream)
             self.reader = AnalogMultiChannelReader(self.task_ai.in_stream)
             self.writer.write_many_sample(stims)
             #self.task_ao.write(stims, auto_start=False)
         if not digstim is None:
             if not self.task_do is None:
-                self.task_do.timing.cfg_samp_clk_timing(rate = self.srate,
-                                                        source = 'PFI0',
-                                                        samps_per_chan = self.nsamples)
+                self.task_do.timing.cfg_samp_clk_timing(
+                    rate = self.srate,
+                    source = self.samp_clk_terminal,
+                    active_edge=nidaqmx.constants.Edge.RISING,
+                    samps_per_chan = self.nsamples)
                 #self.task_do.triggers.start_trigger.cfg_dig_edge_start_trig('PFI0')
 
             digstims = np.zeros((self.n_digioutput_chan,self.nsamples),dtype = bool)
@@ -179,10 +209,13 @@ class IOTask():
         #self.task_ao.ao_channels.all.ao_dac_ref_allow_conn_to_gnd = True
 
         self.task_ai.start()
-        if not self.task_ao is None:
-            self.task_ao.start()
         if not self.task_do is None:
             self.task_do.start()
+        if not self.task_ao is None:
+            self.task_ao.start()
+        if not self.task_clock is None:
+            self.task_clock.start()
+
         #self.task_ao.ao_channels.all.ao_dac_ref_conn_to_gnd = False
 
         if blocking:
@@ -190,6 +223,10 @@ class IOTask():
             self.reader.read_many_sample(self.data,
                                          number_of_samples_per_channel = self.nsamples,
                                          timeout = self.nsamples/self.srate + 1)
+
+            self.task_clock.wait_until_done()
+            self.task_clock.stop()
+
             if not self.task_ai is None:
                 self.task_ai.wait_until_done()
                 self.task_ai.stop()
