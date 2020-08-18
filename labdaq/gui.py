@@ -94,6 +94,13 @@ class SealTestWidget(QWidget):
             labelvc.setText('VC offset [<b>{0} mV</b>]'.format(value))
         self.vcoffsetw.valueChanged.connect(vcchange)
         self.vcoffsetw.setValue(self.vcoffset)
+
+        self.zerooffsetsw = QPushButton('zero offsets')
+        l.addRow(self.zerooffsetsw)
+        def zero(value):
+            self.vcoffsetw.setValue(0)
+            self.ccoffsetw.setValue(0)
+        self.zerooffsetsw.clicked.connect(zero)
         self.lay.addWidget(w,0,0,1,1)
         self.timer = QTimer()
         self.timer.timeout.connect(self._update)
