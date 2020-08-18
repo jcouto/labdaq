@@ -2,6 +2,7 @@ from .utils import *
 import nidaqmx
 from nidaqmx.stream_writers import AnalogMultiChannelWriter
 from nidaqmx.stream_readers import AnalogMultiChannelReader
+from nidaqmx.stream_writers import DigitalMultiChannelWriter
 
 class IOTask():
     # This is only nidaq for now.
@@ -19,7 +20,7 @@ class IOTask():
     def _parse_channels(self):
         chantypes = np.array([c['type'] for c in self.chaninfo])
         self.output_chan_index = np.where(chantypes == 'analog_output')[0]
-        self.digioutput_chan_index = np.where(chantypes == 'digital_output')[0]
+        self.digioutput_chan_index = np.where(chantypes == 'digital_port')[0]
         self.input_chan_index = np.where(chantypes == 'analog_input')[0]
         self.n_output_chan = len(self.output_chan_index)
         self.n_digioutput_chan = len(self.digioutput_chan_index)
@@ -57,11 +58,13 @@ class IOTask():
                 dev = self.chaninfo[ichan]['device']
                 if 'ni:' in dev:
                     dev = dev.strip('ni:')
-                    chanstr = dev+'/'+self.chaninfo[ichan]['channel']
-                    if self.task_do is None:
-                        self.task_do = nidaqmx.Task()
-                    self.task_do.do_channels.add_do_chan(chanstr)
-                    self.task_do_modes.append(self.chaninfo[ichan]['modes'][0])
+                chanstr = dev+'/'+self.chaninfo[ichan]['channel']
+                if self.task_do is None:
+                    self.task_do = nidaqmx.Task()
+                self.task_do.do_channels.add_do_chan(
+                    chanstr,
+                    line_grouping = nidaqmx.constants.LineGrouping.CHAN_FOR_ALL_LINES)
+                self.task_do_modes.append(self.chaninfo[ichan]['modes'][0])
         if self.n_input_chan:
             for ichan in self.input_chan_index:
                 dev = self.chaninfo[ichan]['device']
@@ -129,7 +132,8 @@ class IOTask():
                                                             samps_per_chan = self.nsamples)
 
             # Take care of the conversions
-            stims = np.zeros((self.n_output_chan,self.nsamples),dtype = np.float64)
+            stims = np.zeros((self.n_output_chan,
+                              self.nsamples),dtype = np.float64)
             # Fix the analog output conversions
             for i in range(self.n_output_chan):
                 if i < len(stim):
@@ -160,6 +164,7 @@ class IOTask():
             self.reader = AnalogMultiChannelReader(self.task_ai.in_stream)
             self.writer.write_many_sample(stims)
             #self.task_ao.write(stims, auto_start=False)
+        self.run_do = False
         if not digstim is None:
             if not self.task_do is None:
                 self.task_do.timing.cfg_samp_clk_timing(
@@ -167,17 +172,19 @@ class IOTask():
                     source = self.samp_clk_terminal,
                     active_edge=nidaqmx.constants.Edge.RISING,
                     samps_per_chan = self.nsamples)
-                #self.task_do.triggers.start_trigger.cfg_dig_edge_start_trig('PFI0')
-
-            digstims = np.zeros((self.n_digioutput_chan,self.nsamples),dtype = bool)
-            for i in range(self.n_digioutput_chan):
-                if i < len(digstim):
+                #this works for 32 bit ports only, all iputs must be on the same port for now.
+                digstims = np.zeros((self.nsamples,32),dtype = np.uint32)
+                for i in range(len(digstim)):
                     if digstim[i] is None:
                         continue
                     if not len(digstim[i]):
                         continue
-                    digstims[i] = digstim[i]
-            self.task_do.write(digstim[0]!=1, auto_start=False)
+                    digstims[:,i] = (digstim[i] != 0)
+                self.di_writer = DigitalMultiChannelWriter(self.task_do.out_stream)
+                self.di_writer.write_many_sample_port_uint32(np.packbits(
+                    digstims,
+                    bitorder='little').reshape((1,-1)).view(np.uint32))
+                self.run_do = True
     def _check_modes(self):
         if not hasattr(self,'task_axon200B_mode'):
             self.mode = None
@@ -207,9 +214,9 @@ class IOTask():
         self._check_modes()
         aiconversion = self._get_conversion(True)
         #self.task_ao.ao_channels.all.ao_dac_ref_allow_conn_to_gnd = True
-
-        self.task_ai.start()
-        if not self.task_do is None:
+        if not self.task_ai is None:
+            self.task_ai.start()
+        if self.run_do:
             self.task_do.start()
         if not self.task_ao is None:
             self.task_ao.start()
@@ -233,10 +240,9 @@ class IOTask():
             if not self.task_ao is None:
                 self.task_ao.wait_until_done()
                 self.task_ao.stop()
-            if not self.task_do is None:
+            if self.run_do:
                 self.task_do.wait_until_done()
                 self.task_do.stop()
-
             return np.array(self.data)*aiconversion
         else:
             return None
