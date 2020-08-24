@@ -232,22 +232,25 @@ class EXPPROTWidget(QWidget):
         self.setLayout(lay)
         self.protocolsfolder = protocolsfolder
         self.fbrowse = ProtocolFileViewer(self.protocolsfolder)
-        self.stimgenfile = QTextEdit()
+        self.subjectw = QLineEdit()
         self.plotw = pg.PlotWidget()
         self.plots = []
         self.runbutton = QPushButton('Run exp prot')
         lay.addWidget(self.fbrowse,0,0,2,1)
         lay.addWidget(self.runbutton,2,0,1,1)
-        lay.addWidget(self.stimgenfile,3,0,1,2)
-        lay.addWidget(self.plotw,0,1,3,3)
+        lay.addWidget(self.subjectw,3,0,1,1)
+        lay.addWidget(self.plotw,0,1,4,4)
         #self.plots.append(self.plotw.plot(np.arange(len(x))/self.srate,x))
-        self.stimgenfile.setText('')
+        self.subjectw.setText('test')
         self.runbutton.clicked.connect(self.run_file)
     def run_file(self):
         filenames = [self.fbrowse.fs_model.filePath(s) for s in self.fbrowse.selectedIndexes()]
         fname = np.unique(filenames)[0]
         display('Selected {0}'.format(fname))
         if os.path.isdir(fname):
+            display('This works only with ".expprot" files for now [{0}].'.format(fname))
+            sys.stdout.flush()
+
             return
         if os.path.isfile(fname):
             if not os.path.splitext(fname)[1] == '.expprot':
@@ -257,6 +260,7 @@ class EXPPROTWidget(QWidget):
                 return
         
         expfile = fname
+        self.subject=self.subjectw.text()
         recorderpars = dict(self.pref['recorder'],subject = self.subject)
 
         expdict = parse_experiment_protocol(expfile)
@@ -376,7 +380,7 @@ def main():
     from .nidaq import IOTask
     import sys
     pref = get_preferences('default')
-    protfolder = pjoin(os.path.expanduser('~'), 'labdaq/default')
+    protfolder = pjoin(os.path.expanduser('~'), 'labdaq/default/protocols')
     task = IOTask(pref['channels'],pref['channel_modes'])
 
     app = QApplication(sys.argv)
