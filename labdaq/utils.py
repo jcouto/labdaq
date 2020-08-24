@@ -5,6 +5,7 @@ from datetime import datetime
 import sys
 import os
 from os.path import join as pjoin
+import json
 
 def display(msg):
     sys.stdout.write('['+datetime.today().strftime('%y-%m-%d %H:%M:%S')+'] - ' + msg + '\n')
@@ -87,10 +88,11 @@ def get_preferences(user = 'default', create = True, homedir = preferencepath):
         if not os.path.isdir(prefpath):
             os.makedirs(prefpath)
             os.makedirs(pjoin(prefpath,'protocols'))
-            
+            display('Created folders: {0}'.format(prefpath))
         with open(preffilepath, 'w') as outfile:
-            json.dump(default_preferences, outfile, sort_keys = True, indent = 4)
-            display('Saving default preferences to: ' + preffilepath)
+            json.dump(default_preferences, outfile,
+                      sort_keys = True, indent = 4)
+            display('Saved default preferences to: ' + preffilepath)
             print('''
 
              >>> Edit the file before launching. <<<

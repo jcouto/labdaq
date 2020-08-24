@@ -30,9 +30,12 @@ from PyQt5 import QtCore
 from PyQt5.QtGui import QStandardItem, QStandardItemModel,QColor
 from PyQt5.QtCore import Qt, QTimer,QMimeData
 import pyqtgraph as pg
+from datetime import datetime
+import socket
 
 from .utils import *
 from .stimgen import *
+from .exputils import *
 
 class SealTestWidget(QWidget):
     def __init__(self,task,interval = 500, amplitude = [10,200],duration=0.010):
@@ -51,12 +54,14 @@ class SealTestWidget(QWidget):
         self._init_gui()
         self.set_amp()
         self.task.load([self.get_pulse()])
-        data = self.task.run()
+        data = self.task.run(blocking=True)
         if len(data.shape) > 1:
             for x in data:
-                self.plots.append(self.plotw.plot(np.arange(len(x))/self.srate,x))
+                self.plots.append(self.plotw.plot(
+                    np.arange(len(x))/self.srate,x))
         else:
-            self.plots.append(self.plotw.plot(np.arange(len(data))/self.srate,data))
+            self.plots.append(self.plotw.plot(
+                np.arange(len(data))/self.srate,data))
 
     def _init_gui(self):
         w = QWidget()
@@ -151,9 +156,9 @@ class SealTestWidget(QWidget):
             elif self.task.mode == 'cc':
                 offset = float(self.ccoffsetw.value())
 
-        pulse = [[self.duration,1,0,0,0,0,0,0,0,0],
-                [self.duration,1,self.amplitude,0,0,0,0,0,0,0],
-                [self.duration,1,0,0,0,0,0,0,0,0]]
+        pulse = [[self.duration,1,0],
+                [self.duration,1,self.amplitude],
+                [self.duration,1,0]]
         
         return stimgen_waveform(pulse,srate = self.task.srate)+offset
     def closeEvent(self,event):
@@ -164,8 +169,7 @@ class SealTestWidget(QWidget):
     def _update(self):
         self.set_amp()
         self.task.load([self.get_pulse()])
-        data = self.task.run().astype(np.float32)
-        
+        data = self.task.run(blocking=True).astype(np.float32)
         offset = np.nanmean(data[0,:int(0.7*self.duration*self.srate)])
         post = np.nanmean(data[0,int(1.1*self.duration*self.srate):int(
             1.9*self.duration*self.srate)])
@@ -180,6 +184,8 @@ class SealTestWidget(QWidget):
                 self.modew.setText('<b> {0} </b>'.format('current clamp'))
             self.R = R #(R + self.R*29)/30.
             self.resw.setText('{0:.2f} MOhm'.format(self.R))
+        else:
+            self.modew.setText('<b> {0} </b>'.format('unknown'))
         if len(data.shape) > 1:
             for i,x in enumerate(data):
                 self.plots[i].setData(x=np.arange(len(x))/self.srate,y = x)
@@ -187,10 +193,203 @@ class SealTestWidget(QWidget):
             self.plots[0].setData(x=np.arange(len(data))/self.srate,y = data)
 
 
+class ProtocolFileViewer(QTreeView):
+     def __init__(self,folder,parent=None):
+        super(ProtocolFileViewer,self).__init__()
+        self.parent = parent
+        self.fs_model = QFileSystemModel(self)
+        self.fs_model.setReadOnly(True)
+        self.setModel(self.fs_model)
+        self.folder = folder
+        self.setRootIndex(self.fs_model.setRootPath(folder))
+        self.fs_model.removeColumn(1)
+        self.setAlternatingRowColors(True)
+        self.setSelectionMode(3)
+#         self.setDragEnabled(True)
+#         self.setAcceptDrops(True)
+#         self.setDragDropMode(QAbstractItemView.DragDrop)
+#         self.setDropIndicatorShown(True)
+#         #[self.hideColumn(i) for i in range(1,4)]
+        self.setColumnWidth(0,self.width()*.3)
+        def query_root(self):
+            folder = QFileDialog().getExistingDirectory(self,"Select directory",os.path.curdir)
+            self.setRootIndex(self.fs_model.setRootPath(folder))
+            self.expandAll()
+            self.folder = folder
+            if hasattr(self.parent,'folder'):
+                self.parent.folder.setText('{0}'.format(folder))
+
+# A widget to run experiments
+class EXPPROTWidget(QWidget):
+    def __init__(self,task,pref,protocolsfolder = None):
+        super(EXPPROTWidget,self).__init__()
+        #mainw = QWidget()
+        #self.setWidget(mainw)
+        self.task = task
+        self.pref = pref
+        self.subject = 'test'
+        lay = QGridLayout()
+        self.setLayout(lay)
+        self.protocolsfolder = protocolsfolder
+        self.fbrowse = ProtocolFileViewer(self.protocolsfolder)
+        self.stimgenfile = QTextEdit()
+        self.plotw = pg.PlotWidget()
+        self.plots = []
+        self.runbutton = QPushButton('Run exp prot')
+        lay.addWidget(self.fbrowse,0,0,2,1)
+        lay.addWidget(self.runbutton,2,0,1,1)
+        lay.addWidget(self.stimgenfile,3,0,1,2)
+        lay.addWidget(self.plotw,0,1,3,3)
+        #self.plots.append(self.plotw.plot(np.arange(len(x))/self.srate,x))
+        self.stimgenfile.setText('')
+        self.runbutton.clicked.connect(self.run_file)
+    def run_file(self):
+        filenames = [self.fbrowse.fs_model.filePath(s) for s in self.fbrowse.selectedIndexes()]
+        fname = np.unique(filenames)[0]
+        display('Selected {0}'.format(fname))
+        if os.path.isdir(fname):
+            return
+        if os.path.isfile(fname):
+            if not os.path.splitext(fname)[1] == '.expprot':
+                display('This works only with ".expprot" files for now [{0}].'.format(
+                    os.path.splitext(fname)[1]))
+                sys.stdout.flush()
+                return
+        
+        expfile = fname
+        recorderpars = dict(self.pref['recorder'],subject = self.subject)
+
+        expdict = parse_experiment_protocol(expfile)
+        expdict,stim,digistim = parse_experiment(expdict,self.task)
+
+
+        recorderpars['prot'] = os.path.basename(os.path.splitext(expfile)[0])
+        # this will load and run
+        if 'labcams' in expdict.keys():
+            labcamsaddress = expdict['labcams'].split(':')
+            labcamsaddress[-1] = int(labcamsaddress[-1])
+            labcamsaddress = tuple(labcamsaddress)
+
+            udplabcams = socket.socket(socket.AF_INET,
+                                       socket.SOCK_DGRAM)
+            udplabcams.sendto(b'softtrigger=0', labcamsaddress)
+            time.sleep(0.01)
+            udplabcams.sendto(b'manualsave=0', labcamsaddress)
+            time.sleep(0.01)
+        recorderpars['datetime'] = datetime.now().strftime("%Y%m%d_%H%M%S")
+        for itrial in range(expdict['ntrials']):
+            tstart = time.time()
+            # get the filename
+            filename = os.path.basename(self.pref['recorder']['path'])+'_{itrial}.{format}'
+            recorderpars['filename'] = pjoin(recorderpars['path'], filename)
+            recorderpars['itrial'] = itrial
+            filename = recorderpars['filename'].format(**recorderpars)
+            if 'labcams' in expdict.keys():
+                udplabcams.sendto('expname={0}'.format(
+                    os.path.basename(os.path.dirname(filename))).encode(
+                        'utf-8'), labcamsaddress)    
+                time.sleep(0.01)
+                udplabcams.sendto(b'manualsave=1', labcamsaddress)
+                time.sleep(0.01)
+                udplabcams.sendto(b'softtrigger=1', labcamsaddress)
+                time.sleep(0.01)
+                udplabcams.sendto('log=trial:{0}'.format(itrial).encode('utf-8'), labcamsaddress)
+                time.sleep(0.01)
+            self.task.load(stim = stim,digstim = digistim)
+            # check if you need to load labcams
+            sys.stdout.flush()
+            self.task.run(blocking=False)
+            taskdone = False
+            while not self.task.acquired:
+                taskdone = True
+                QApplication.processEvents()
+                dat = self.task.data[:,:self.task.ibuff]
+                t = np.arange(dat.shape[1])/self.task.srate
+                if not len(self.plots):
+                    for d in dat:    
+                        self.plots.append(self.plotw.plot(t,d))
+                else:
+                    for i,d in enumerate(dat):    
+                        self.plots[i].setData(x=t,y = d)
+                time.sleep(0.03)
+            if taskdone:
+                if 'labcams' in expdict.keys():
+                    udplabcams.sendto(b'softtrigger=0', labcamsaddress)
+                    time.sleep(0.1)
+                    udplabcams.sendto(b'manualsave=0', labcamsaddress)
+                # save
+                h5_save(filename,self.task,self.pref,stim=stim,digistim=digistim)
+            if 'iti' in expdict.keys():
+                tpassed = time.time() - tstart
+                ttotal = expdict['duration'] - expdict['iti']
+                if ( ttotal >= tpassed): 
+                    time.sleep(ttotal - tpassed)
+            sys.stdout.flush()
+        if 'labcams' in expdict.keys():
+            udplabcams.close()
+    
+def get_tree_path(items,root = ''):
+    ''' Get the paths from a QTreeView item'''
+    paths = []
+    for item in items:
+        level = 0
+        index = item
+        paths.append([index.data()])
+        while index.parent().isValid():
+            index = index.parent()
+            level += 1
+            paths[-1].append(index.data())
+    for i,p in enumerate(paths):
+        if None in p:
+            paths[i] = ['']
+    return ['/'.join(p[::-1]) for p in paths]
+
+class LABDAQ_GUI(QMainWindow):
+    app = None
+    task = None
+    def __init__(self,
+                 task,
+                 pref,
+                 folder=None,
+                 app=None):
+        super(LABDAQ_GUI,self).__init__()
+        self.setWindowTitle('labdaq')
+        self.setDockOptions(QMainWindow.AllowTabbedDocks |
+                            QMainWindow.AllowNestedDocks)
+        self.task = task
+        self.protfolder = folder
+        self.pref = pref
+        self.sealtest_widget = SealTestWidget(self.task)
+        self.stimgen_widget = EXPPROTWidget(self.task,self.pref,self.protfolder)
+        
+        self.sealtest_tab = QDockWidget("seal test",self)
+        self.sealtest_tab.setWidget(self.sealtest_widget)
+        self.addDockWidget(Qt.LeftDockWidgetArea, self.sealtest_tab)
+        self.stimgen_tab = QDockWidget("stimulus",self)
+        self.stimgen_tab.setWidget(self.stimgen_widget)
+        self.addDockWidget(Qt.LeftDockWidgetArea, self.stimgen_tab)
+
+        self.show()
+        
+
 def main():
     from .nidaq import IOTask
     import sys
-    pref = default_preferences
+    pref = get_preferences('default')
+    protfolder = pjoin(os.path.expanduser('~'), 'labdaq/default')
+    task = IOTask(pref['channels'],pref['channel_modes'])
+
+    app = QApplication(sys.argv)
+    gui = LABDAQ_GUI(task,pref,protfolder,app)
+    gui.show()
+    sys.exit(app.exec_())
+
+
+    
+def sealtest():
+    from .nidaq import IOTask
+    import sys
+    pref = get_preferences()
     task = IOTask(pref['channels'],pref['channel_modes'])
 
     app = QApplication(sys.argv)
@@ -198,5 +397,4 @@ def main():
     test.show()
     sys.exit(app.exec_())
 
-    pass
 

@@ -3,6 +3,7 @@ import nidaqmx
 from nidaqmx.stream_writers import AnalogMultiChannelWriter
 from nidaqmx.stream_readers import AnalogMultiChannelReader
 from nidaqmx.stream_writers import DigitalMultiChannelWriter
+import threading
 
 class IOTask():
     # This is only nidaq for now.
@@ -16,6 +17,7 @@ class IOTask():
         self.mode = None
         self._parse_channels()
         self._create_tasks()
+        self.acquired = True
         
     def _parse_channels(self):
         chantypes = np.array([c['type'] for c in self.chaninfo])
@@ -27,7 +29,6 @@ class IOTask():
         self.n_input_chan = len(self.input_chan_index)
         # Check of there is a special channel type: 'axon200B_mode'
         self.axon200B_mode = np.where(chantypes == 'axon200B_mode')[0]
-        
         
     def _create_tasks(self):
         self.task_ai = None
@@ -111,7 +112,8 @@ class IOTask():
         # check if the modes are up to date
         assert type(stim) is list, 'Stim needs to be a list of numpy arrays'
         self._check_modes()
-        self.nsamples = np.max([np.max(s.shape) for s in stim if not s is None])
+        self.nsamples = int(np.max([np.max(s.shape)
+                                    for s in stim if not s is None]))
         aoconversion = self._get_conversion(False)
             
         if not self.task_ai is None and self.task_ao is None:
@@ -179,7 +181,7 @@ class IOTask():
                         continue
                     if not len(digstim[i]):
                         continue
-                    digstims[:,i] = (digstim[i] != 0)
+                    digstims[:,i] = (digstim[i] > 0)
                 self.di_writer = DigitalMultiChannelWriter(self.task_do.out_stream)
                 self.di_writer.write_many_sample_port_uint32(np.packbits(
                     digstims,
@@ -210,7 +212,7 @@ class IOTask():
                     if m in self.mode:
                         self.task_ai_modes[i] = m
         
-    def run(self,blocking = True):
+    def run(self, blocking = True):
         self._check_modes()
         aiconversion = self._get_conversion(True)
         #self.task_ao.ao_channels.all.ao_dac_ref_allow_conn_to_gnd = True
@@ -222,30 +224,51 @@ class IOTask():
             self.task_ao.start()
         if not self.task_clock is None:
             self.task_clock.start()
-
+        self.acquired = False
         #self.task_ao.ao_channels.all.ao_dac_ref_conn_to_gnd = False
-
+        self.data = np.zeros((self.n_input_chan,self.nsamples),
+                             dtype=np.float64)
+        self.ibuff = int(0)
         if blocking:
-            self.data = np.zeros((self.n_input_chan,self.nsamples),dtype=np.float64)
-            self.reader.read_many_sample(self.data,
-                                         number_of_samples_per_channel = self.nsamples,
-                                         timeout = self.nsamples/self.srate + 1)
-
-            self.task_clock.wait_until_done()
-            self.task_clock.stop()
-
-            if not self.task_ai is None:
-                self.task_ai.wait_until_done()
-                self.task_ai.stop()
-            if not self.task_ao is None:
-                self.task_ao.wait_until_done()
-                self.task_ao.stop()
-            if self.run_do:
-                self.task_do.wait_until_done()
-                self.task_do.stop()
-            return np.array(self.data)*aiconversion
+            self.reader.read_many_sample(
+                self.data,
+                number_of_samples_per_channel = self.nsamples,
+                timeout = self.nsamples/self.srate + 1)
+            self.data = self.data*aiconversion
+            self._clean_run()
+            return self.data
         else:
+            def run_thread():
+                self.reader.read_all_avail_samp = True
+                buffer = np.zeros((self.n_input_chan,1000),
+                                  dtype=np.float64)
+                while not self.ibuff == self.nsamples:
+                    nsamples = self.reader.read_many_sample(
+                        buffer,
+                        number_of_samples_per_channel = 1000,
+                        timeout = 1)
+                    self.data[:,self.ibuff:self.ibuff+nsamples] = buffer[:,:nsamples]*aiconversion
+                    self.ibuff += int(nsamples)
+                self._clean_run()
+            
+            self.thread_task = threading.Thread(target=run_thread)
+            self.thread_task.start()
             return None
+
+    def _clean_run(self):
+        self.task_clock.wait_until_done()
+        self.task_clock.stop()
+        
+        if not self.task_ai is None:
+            self.task_ai.wait_until_done()
+            self.task_ai.stop()
+        if not self.task_ao is None:
+            self.task_ao.wait_until_done()
+            self.task_ao.stop()
+        if self.run_do:
+            self.task_do.wait_until_done()
+            self.task_do.stop()
+        self.acquired = True
 
     def _get_conversion(self,get_ai = False):
         if get_ai:

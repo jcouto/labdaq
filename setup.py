@@ -22,8 +22,8 @@ setup(
   packages = ['labdaq'],
   entry_points = {
         'console_scripts': [
-          'labdaq = labdaq.cli:main',
-          'labdaq-sealtest = labdaq.gui:main',
+          'labdaq = labdaq.gui:main',
+          'labdaq-sealtest = labdaq.gui:sealtest',
         ]
         },
     )
