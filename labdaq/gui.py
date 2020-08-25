@@ -220,14 +220,13 @@ class ProtocolFileViewer(QTreeView):
                 self.parent.folder.setText('{0}'.format(folder))
 
 # A widget to run experiments
-class EXPPROTWidget(QWidget):
-    def __init__(self,task,pref,protocolsfolder = None):
-        super(EXPPROTWidget,self).__init__()
-        #mainw = QWidget()
-        #self.setWidget(mainw)
+class ExpProtWidget(QWidget):
+    def __init__(self,task,pref,protocolsfolder = None,parent = None):
+        super(ExpProtWidget,self).__init__()
+        self.parent = parent
         self.task = task
         self.pref = pref
-        self.subject = 'test'
+        self.subject = 'exp_name'
         lay = QGridLayout()
         self.setLayout(lay)
         self.protocolsfolder = protocolsfolder
@@ -240,11 +239,12 @@ class EXPPROTWidget(QWidget):
         lay.addWidget(self.runbutton,2,0,1,1)
         lay.addWidget(self.subjectw,3,0,1,1)
         lay.addWidget(self.plotw,0,1,4,4)
-        #self.plots.append(self.plotw.plot(np.arange(len(x))/self.srate,x))
-        self.subjectw.setText('test')
+        self.subjectw.setText(self.subject)
         self.runbutton.clicked.connect(self.run_file)
+        
     def run_file(self):
-        filenames = [self.fbrowse.fs_model.filePath(s) for s in self.fbrowse.selectedIndexes()]
+        filenames = [self.fbrowse.fs_model.filePath(s)
+                     for s in self.fbrowse.selectedIndexes()]
         fname = np.unique(filenames)[0]
         display('Selected {0}'.format(fname))
         if os.path.isdir(fname):
@@ -258,14 +258,16 @@ class EXPPROTWidget(QWidget):
                     os.path.splitext(fname)[1]))
                 sys.stdout.flush()
                 return
-        
+        # stop sealtest if it exists
+        if hasattr(self.parent,'sealtest_widget'):
+            self.parent.sealtest_widget.startstopw.setChecked(False)
+            
         expfile = fname
         self.subject=self.subjectw.text()
         recorderpars = dict(self.pref['recorder'],subject = self.subject)
 
         expdict = parse_experiment_protocol(expfile)
         expdict,stim,digistim = parse_experiment(expdict,self.task)
-
 
         recorderpars['prot'] = os.path.basename(os.path.splitext(expfile)[0])
         # this will load and run
@@ -284,7 +286,8 @@ class EXPPROTWidget(QWidget):
         for itrial in range(expdict['ntrials']):
             tstart = time.time()
             # get the filename
-            filename = os.path.basename(self.pref['recorder']['path'])+'_{itrial}.{format}'
+            filename = os.path.basename(
+                self.pref['recorder']['path']) + '_{itrial}.{format}'
             recorderpars['filename'] = pjoin(recorderpars['path'], filename)
             recorderpars['itrial'] = itrial
             filename = recorderpars['filename'].format(**recorderpars)
@@ -297,7 +300,8 @@ class EXPPROTWidget(QWidget):
                 time.sleep(0.01)
                 udplabcams.sendto(b'softtrigger=1', labcamsaddress)
                 time.sleep(0.01)
-                udplabcams.sendto('log=trial:{0}'.format(itrial).encode('utf-8'), labcamsaddress)
+                udplabcams.sendto('log=trial:{0}'.format(
+                    itrial).encode('utf-8'), labcamsaddress)
                 time.sleep(0.01)
             self.task.load(stim = stim,digstim = digistim)
             # check if you need to load labcams
@@ -322,7 +326,8 @@ class EXPPROTWidget(QWidget):
                     time.sleep(0.1)
                     udplabcams.sendto(b'manualsave=0', labcamsaddress)
                 # save
-                h5_save(filename,self.task,self.pref,stim=stim,digistim=digistim)
+                h5_save(filename,self.task,self.pref,
+                        stim=stim, digistim=digistim)
             if 'iti' in expdict.keys():
                 tpassed = time.time() - tstart
                 ttotal = expdict['duration'] - expdict['iti']
@@ -363,21 +368,26 @@ class LABDAQ_GUI(QMainWindow):
         self.task = task
         self.protfolder = folder
         self.pref = pref
-        self.sealtest_widget = SealTestWidget(self.task)
-        self.stimgen_widget = EXPPROTWidget(self.task,self.pref,self.protfolder)
-        
-        self.sealtest_tab = QDockWidget("seal test",self)
-        self.sealtest_tab.setWidget(self.sealtest_widget)
-        self.addDockWidget(Qt.LeftDockWidgetArea, self.sealtest_tab)
+        self.stimgen_widget = ExpProtWidget(self.task,
+                                            self.pref,
+                                            self.protfolder,
+                                            parent = self)
         self.stimgen_tab = QDockWidget("stimulus",self)
         self.stimgen_tab.setWidget(self.stimgen_widget)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.stimgen_tab)
+        
+        if 'cc' in self.task.modeinfo.keys():
+            self.sealtest_widget = SealTestWidget(self.task)
+            self.sealtest_tab = QDockWidget("seal test",self)
+            self.sealtest_tab.setWidget(self.sealtest_widget)
+            self.addDockWidget(Qt.LeftDockWidgetArea, self.sealtest_tab)
 
         self.show()
         
 
 def main():
-    from .nidaq import IOTask
+    
+    from .tasks import IOTask
     import sys
     pref = get_preferences('default')
     protfolder = pjoin(os.path.expanduser('~'), 'labdaq/default/protocols')

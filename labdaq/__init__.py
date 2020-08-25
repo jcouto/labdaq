@@ -1,9 +1,5 @@
 from .utils import *
 from .stimgen import *
-try:
-    from .nidaq import IOTask
-except Exception as E:
-    print(E)
-    pass
+from .tasks import *
 from .nbutils import *
 from .exputils import *
