@@ -64,7 +64,24 @@ def parse_experiment_protocol(expfile):
                     # parse the value
                     expdict[k] = _parse_value(v)
     # read stimprot files (2nd pass - reads the waveforms)
-    # Todo make that the exp file can have the waveforms specfied instead       
+    # Todo make that the exp file can have the waveforms specfied instead
+
+    # determine the number of stimuli
+    # check if there are any lists or numpy arrays and evaluate
+    # this could be not the best way of doing it
+    # because there can only be one
+    nstims = 1
+    for k in expdict.keys():
+        if not k in ['analog_stim','digital_stim']:
+            s = expdict[k]
+            if type(s) is str:
+                if 'np.' in s:
+                    expdict[k] = eval(s)
+                elif '[' in s and ']' in s:
+                    expdict[k] = eval(s)
+                nstims = len(expdict[k])
+    expdict['nstims'] = nstims
+    
     tmp = []
     for i,a in enumerate(expdict['analog_stim']):
         if a == None:
@@ -86,11 +103,13 @@ def parse_experiment_protocol(expfile):
 def parse_experiment(expdict,task):
     expdict['srate'] = task.srate
     stim = []
+        
     if not expdict['analog_stim'] is None:
         for istim,w in enumerate(expdict['analog_stim']):
             if w is None:
                 stim.append(None)
             else:
+                # this is where i need to check if there are any strings in the lists.
                 stim.append(stimgen_waveform(w,srate=expdict['srate']))
     digistim = []
     if not expdict['digital_stim'] is None:
@@ -117,7 +136,7 @@ def parse_experiment(expdict,task):
         expdict['iti'] = 0
     if not len(digistim):
         digistim = None
-    return expdict,stim,digistim
+    return expdict,[stim],[digistim]
 
 
 def h5_save(filename,task,pref,stim=None,digistim=None):
@@ -143,4 +162,3 @@ def h5_save(filename,task,pref,stim=None,digistim=None):
                 fd.create_dataset(channame,
                                   data = (digistim[i] > 0))
     display('Saved {0}'.format(os.path.basename(filename)))
-            

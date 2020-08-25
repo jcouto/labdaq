@@ -13,7 +13,7 @@ class BaseTask():
         self._parse_channels()
         self._create_tasks()
         self.acquired = True # signals that acquisition is complete
-        self.buff_dtype = np.float32
+        self.buff_dtype = np.float64
 
     def _parse_channels(self):
         chantypes = np.array([c['type'] for c in self.chaninfo])
@@ -67,7 +67,7 @@ class BaseTask():
                              dtype=self.buff_dtype)
         self.ibuff = int(0)
 
-        return self._run()
+        return self._run(blocking=blocking)
 
     # Functions that need to be overwritten
     def _get_axon200B_mode(self):
@@ -140,26 +140,63 @@ class IOTaskDummy(BaseTask):
             self.task_do = digstim
         
     def _run(self, blocking = True):
+        self.acquired = False
         if blocking:
             for ichan in range(self.n_input_chan): 
                 self.data[ichan] = self.task_ai[ichan]
             self.ibuff = self.nsamples
+            sys.stdout.flush()
             time.sleep(self.nsamples/self.srate)
-            
+            self.acquired = True
             return self.data
         else:
             def run_thread():
-                while not self.ibuff==self.nsamples:
-                    self.ibuff += 1
+                self.ibuff = 0
+                tstart = time.time()
+                for self.ibuff in range(0,self.nsamples,10)[1:]:
                     for ichan in range(self.n_input_chan): 
-                        self.data[ichan,self.ibuff] = self.task_ai[ichan][self.ibuff]
-                        time.sleep(1./self.srate)
+                        self.data[ichan,
+                                  np.clip(self.ibuff,0,self.nsamples-1):
+                                  np.clip(self.ibuff+10,0,self.nsamples-1)
+                        ] = self.task_ai[ichan][
+                            np.clip(self.ibuff,0,self.nsamples-1):
+                            np.clip(self.ibuff+10,0,self.nsamples-1)]
+                    tadvanced = (self.ibuff/self.srate) - (time.time() - tstart)
+                    if tadvanced > 0:
+                        time.sleep(tadvanced)
+                self.acquired = True
+
             self.thread_task = threading.Thread(target=run_thread)
             self.thread_task.start()
             return None
     def _get_axon200B_mode(self):
         self.mode = 'cc'
 
+NIDAQERRORMSG='''
+
+The drivers for NI cards are needed (If you don't want to use a NI card change the preference file):
+
+    Install NIDAQMX from the labview website and then
+            
+    pip install nidaqmx
+
+Note: this works only on windows for now.
+
+'''
+
+MCCDAQERRORMSG = '''
+
+NOT IMPLEMENTED!!
+
+The drivers for MCCDAQ cards are needed (If you don't want to use a MCC card change the preference file):
+
+    Install MCC UniversalLibrary from the labview website and then
+            
+    pip install mccdaqul
+
+Note: this works only on windows for now.
+
+'''
 
 def IOTask(channels,modes):
     ''' 
@@ -175,20 +212,10 @@ def IOTask(channels,modes):
             from .nidaq import IOTaskNidaq
         except Exception as E:
             print(E)
-            raise OSError('''
-
-The drivers for NI cards are needed (If you don't want to use a NI card change the preference file):
-
-    Install NIDAQMX from the labview website and then
-            
-    pip install nidaqmx
-
-Note: this works only on windows for now.
-
-            ''')
+            raise OSError(NIDAQERRORMSG)
         return IOTaskNidaq(channels,modes)
     elif 'mcc:' in channels[0]['device']:
-        raise OSError(' Not implemented')
+        raise OSError(MCCDAQERRORMSG)
     elif 'dummy:' in channels[0]['device']:
         print('Using a dummy task')
         return IOTaskDummy(channels, modes)

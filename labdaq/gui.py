@@ -29,7 +29,13 @@ from PyQt5.QtWidgets import (QApplication,
 from PyQt5 import QtCore
 from PyQt5.QtGui import QStandardItem, QStandardItemModel,QColor
 from PyQt5.QtCore import Qt, QTimer,QMimeData
+
+from PyQt5.QtTest import QTest
+qWait = QTest.qWait
+
 import pyqtgraph as pg
+#pg.setConfigOption('background', [200,200,200])
+
 from datetime import datetime
 import socket
 
@@ -192,7 +198,6 @@ class SealTestWidget(QWidget):
         else:
             self.plots[0].setData(x=np.arange(len(data))/self.srate,y = data)
 
-
 class ProtocolFileViewer(QTreeView):
      def __init__(self,folder,parent=None):
         super(ProtocolFileViewer,self).__init__()
@@ -202,7 +207,6 @@ class ProtocolFileViewer(QTreeView):
         self.setModel(self.fs_model)
         self.folder = folder
         self.setRootIndex(self.fs_model.setRootPath(folder))
-        self.fs_model.removeColumn(1)
         self.setAlternatingRowColors(True)
         self.setSelectionMode(3)
 #         self.setDragEnabled(True)
@@ -219,44 +223,68 @@ class ProtocolFileViewer(QTreeView):
             if hasattr(self.parent,'folder'):
                 self.parent.folder.setText('{0}'.format(folder))
 
+                
 # A widget to run experiments
 class ExpProtWidget(QWidget):
+    colors = ['#d62728',
+          '#1f77b4',
+          '#ff7f0e',
+          '#2ca02c',
+          '#9467bd',
+          '#8c564b',
+          '#e377c2',
+          '#7f7f7f',
+          '#bcbd22']
+    penwidth = 1.
     def __init__(self,task,pref,protocolsfolder = None,parent = None):
         super(ExpProtWidget,self).__init__()
         self.parent = parent
         self.task = task
         self.pref = pref
+        self.running = False
         self.subject = 'exp_name'
         lay = QGridLayout()
         self.setLayout(lay)
+        w = QWidget()
+        l = QFormLayout()
+        w.setLayout(l)
+
         self.protocolsfolder = protocolsfolder
         self.fbrowse = ProtocolFileViewer(self.protocolsfolder)
         self.subjectw = QLineEdit()
         self.plotw = pg.PlotWidget()
         self.plots = []
-        self.runbutton = QPushButton('Run exp prot')
-        lay.addWidget(self.fbrowse,0,0,2,1)
-        lay.addWidget(self.runbutton,2,0,1,1)
-        lay.addWidget(self.subjectw,3,0,1,1)
-        lay.addWidget(self.plotw,0,1,4,4)
+        self.runbutton = QPushButton('Run')
+        self.stopbutton = QPushButton('Stop')
+        def stop():
+            if self.running:
+                self.running = False
+                display('Will stop after this trial.')
+        self.stopbutton.clicked.connect(stop)
+        l.addRow(self.fbrowse)
+        l.addRow(self.runbutton,self.stopbutton)
+        l.addRow(QLabel('Experiment name:'),self.subjectw)
+        lay.addWidget(self.plotw,0,1,1,1)
+        lay.addWidget(w,0,0,1,1)
+        w.setFixedWidth(300) # hardcoded?
         self.subjectw.setText(self.subject)
         self.runbutton.clicked.connect(self.run_file)
         
     def run_file(self):
         filenames = [self.fbrowse.fs_model.filePath(s)
                      for s in self.fbrowse.selectedIndexes()]
+        if not len(filenames):
+            display('Select an expprot file.')
+            return
         fname = np.unique(filenames)[0]
         display('Selected {0}'.format(fname))
         if os.path.isdir(fname):
-            display('This works only with ".expprot" files for now [{0}].'.format(fname))
-            sys.stdout.flush()
-
+            display('Cant run folders: this works only with".expprot" files for now [{0}].'.format(fname))
             return
         if os.path.isfile(fname):
             if not os.path.splitext(fname)[1] == '.expprot':
                 display('This works only with ".expprot" files for now [{0}].'.format(
                     os.path.splitext(fname)[1]))
-                sys.stdout.flush()
                 return
         # stop sealtest if it exists
         if hasattr(self.parent,'sealtest_widget'):
@@ -265,10 +293,14 @@ class ExpProtWidget(QWidget):
         expfile = fname
         self.subject=self.subjectw.text()
         recorderpars = dict(self.pref['recorder'],subject = self.subject)
-
-        expdict = parse_experiment_protocol(expfile)
-        expdict,stim,digistim = parse_experiment(expdict,self.task)
-
+        try:
+            expdict = parse_experiment_protocol(expfile)
+            expdict,stims,digistims = parse_experiment(expdict,self.task)
+        except Exception as e:
+            print(e)
+            display('ERROR - Check the error above, could not parse file {0}'.format(expdict))
+            return
+        self.running = True
         recorderpars['prot'] = os.path.basename(os.path.splitext(expfile)[0])
         # this will load and run
         if 'labcams' in expdict.keys():
@@ -284,56 +316,70 @@ class ExpProtWidget(QWidget):
             time.sleep(0.01)
         recorderpars['datetime'] = datetime.now().strftime("%Y%m%d_%H%M%S")
         for itrial in range(expdict['ntrials']):
-            tstart = time.time()
-            # get the filename
-            filename = os.path.basename(
-                self.pref['recorder']['path']) + '_{itrial}.{format}'
-            recorderpars['filename'] = pjoin(recorderpars['path'], filename)
-            recorderpars['itrial'] = itrial
-            filename = recorderpars['filename'].format(**recorderpars)
-            if 'labcams' in expdict.keys():
-                udplabcams.sendto('expname={0}'.format(
-                    os.path.basename(os.path.dirname(filename))).encode(
-                        'utf-8'), labcamsaddress)    
-                time.sleep(0.01)
-                udplabcams.sendto(b'manualsave=1', labcamsaddress)
-                time.sleep(0.01)
-                udplabcams.sendto(b'softtrigger=1', labcamsaddress)
-                time.sleep(0.01)
-                udplabcams.sendto('log=trial:{0}'.format(
-                    itrial).encode('utf-8'), labcamsaddress)
-                time.sleep(0.01)
-            self.task.load(stim = stim,digstim = digistim)
-            # check if you need to load labcams
-            sys.stdout.flush()
-            self.task.run(blocking=False)
-            taskdone = False
-            while not self.task.acquired:
-                taskdone = True
-                QApplication.processEvents()
-                dat = self.task.data[:,:self.task.ibuff]
-                t = np.arange(dat.shape[1])/self.task.srate
-                if not len(self.plots):
-                    for d in dat:    
-                        self.plots.append(self.plotw.plot(t,d))
-                else:
-                    for i,d in enumerate(dat):    
-                        self.plots[i].setData(x=t,y = d)
-                time.sleep(0.03)
-            if taskdone:
+            for istim,(stim,digistim) in enumerate(zip(stims,digistims)):
+                tstart = time.time()
+                # get the filename
+                filename = os.path.basename(
+                    self.pref['recorder']['path']) + '_{itrial}_{istim}.{format}'
+                recorderpars['filename'] = pjoin(recorderpars['path'], filename)
+                recorderpars['itrial'] = itrial
+                recorderpars['istim'] = istim
+                filename = recorderpars['filename'].format(**recorderpars)
                 if 'labcams' in expdict.keys():
-                    udplabcams.sendto(b'softtrigger=0', labcamsaddress)
-                    time.sleep(0.1)
-                    udplabcams.sendto(b'manualsave=0', labcamsaddress)
-                # save
-                h5_save(filename,self.task,self.pref,
-                        stim=stim, digistim=digistim)
-            if 'iti' in expdict.keys():
-                tpassed = time.time() - tstart
-                ttotal = expdict['duration'] - expdict['iti']
-                if ( ttotal >= tpassed): 
-                    time.sleep(ttotal - tpassed)
-            sys.stdout.flush()
+                    udplabcams.sendto('expname={0}'.format(
+                        os.path.basename(os.path.dirname(filename))).encode(
+                            'utf-8'), labcamsaddress)    
+                    time.sleep(0.01)
+                    udplabcams.sendto(b'manualsave=1', labcamsaddress)
+                    time.sleep(0.01)
+                    udplabcams.sendto(b'softtrigger=1', labcamsaddress)
+                    time.sleep(0.01)
+                    udplabcams.sendto('log=trial:{0};stim:{1}'.format(
+                        itrial,istim).encode('utf-8'), labcamsaddress)
+                    time.sleep(0.01)
+                self.task.load(stim = stim,digstim = digistim)
+                # check if you need to load labcams
+                self.task.run(blocking=False)
+                sys.stdout.flush()
+                taskdone = False
+                pen = pg.mkPen(color=self.colors[0],width=self.penwidth)
+                while not self.task.acquired:
+                    taskdone = True
+                    QApplication.processEvents()
+                    dat = self.task.data[:,:self.task.ibuff]
+                    t = np.arange(dat.shape[1])/self.task.srate
+                    if not len(self.plots):
+                        for i,d in enumerate(dat):
+                            self.plots.append(self.plotw.plot(t,d))
+                    else:
+                        for i,d in enumerate(dat):    
+                            self.plots[i].setData(x=t,y = d, pen=pen)
+                    if not self.task.acquired:
+                        qWait(0.033)
+                # Change color and plot
+                pen = pg.mkPen(color=self.colors[1],width=self.penwidth)
+                for i,d in enumerate(dat):    
+                    self.plots[i].setData(x=t,y = d, pen=pen)
+                if taskdone:
+                    if 'labcams' in expdict.keys():
+                        udplabcams.sendto(b'softtrigger=0', labcamsaddress)
+                        time.sleep(0.1)
+                        udplabcams.sendto(b'manualsave=0', labcamsaddress)
+                    # save
+                    h5_save(filename,self.task,self.pref,
+                            stim=stim, digistim=digistim)
+                if 'iti' in expdict.keys() and self.running:
+                    tpassed = time.time() - tstart
+                    ttotal = expdict['duration'] + expdict['iti']
+                    display('Sleeping ITI {0} (actual: {1})'.format(expdict['iti'],ttotal-tpassed))
+                    if (ttotal - tpassed > 0):
+                        qWait(int((ttotal - tpassed)*1000))
+                if not self.running:
+                    display('Stopped on trial: {0} stim: {1}'.format(itrial,istim))
+                    break
+            if not self.running:
+                break
+        self.running = False
         if 'labcams' in expdict.keys():
             udplabcams.close()
     
@@ -372,18 +418,17 @@ class LABDAQ_GUI(QMainWindow):
                                             self.pref,
                                             self.protfolder,
                                             parent = self)
-        self.stimgen_tab = QDockWidget("stimulus",self)
+        self.stimgen_tab = QDockWidget("Experiment",self)
         self.stimgen_tab.setWidget(self.stimgen_widget)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.stimgen_tab)
         
         if 'cc' in self.task.modeinfo.keys():
             self.sealtest_widget = SealTestWidget(self.task)
-            self.sealtest_tab = QDockWidget("seal test",self)
+            self.sealtest_tab = QDockWidget("Patch seal test",self)
             self.sealtest_tab.setWidget(self.sealtest_widget)
             self.addDockWidget(Qt.LeftDockWidgetArea, self.sealtest_tab)
 
         self.show()
-        
 
 def main():
     
