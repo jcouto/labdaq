@@ -1,13 +1,13 @@
-# ####                  .#.          # ##########   # ##########.            .#.           ,########      
-# ####                 .###.         # ####    `##. # ####    `####.        .###.       . ####     `##.    
-# ####                :#####.        # ####     `## # ####        `##.     :#####.     ,# ####       `##   
-# ####               . `#####.       # ####     ,## # ####         `##    . `#####.    ## ####        `##  
-# ####              .#. `#####.      # ####.   ,##' # ####          ##   .#. `#####.   ## ####         ##  
-# ####             .#`#. `#####.     # ##########   # ####          ##  .#`#. `#####.  ## ####     `#. ##  
-# ####            .#' `#. `#####.    # ####    `##. # ####         ,## .#' `#. `#####. ## ####      `#,##  
-# ####           .#'   `#. `#####.   # ####      ## # ####        ,##'.#'   `#. `#####.`# ####       ;##   
-# ####          .#########. `#####.  # ####    ,##' # ####    ,####' .#########. `#####.` ####     ,##'#.  
-# ############ .#'       `#. `#####. # ##########   # ##########'   .#'       `#. `#####.  `#########  `#. 
+o oooo                  .o.          o oooooooooo   o oooooooooo.            .o.           ,oooooooo      
+o oooo                 .ooo.         o oooo    `oo. o oooo    `oooo.        .ooo.       . oooo     `oo.    
+o oooo                :ooooo.        o oooo     `oo o oooo        `oo.     :ooooo.     ,o oooo       `oo   
+o oooo               . `ooooo.       o oooo     ,oo o oooo         `oo    . `ooooo.    oo oooo        `oo  
+o oooo              .o. `ooooo.      o oooo.   ,oo' o oooo          oo   .o. `ooooo.   oo oooo         oo  
+o oooo             .o`o. `ooooo.     o oooooooooo   o oooo          oo  .o`o. `ooooo.  oo oooo     `o. oo  
+o oooo            .o' `o. `ooooo.    o oooo    `oo. o oooo         ,oo .o' `o. `ooooo. oo oooo      `o,oo  
+o oooo           .o'   `o. `ooooo.   o oooo      oo o oooo        ,oo'.o'   `o. `ooooo.`o oooo       ;oo   
+o oooo          .ooooooooo. `ooooo.  o oooo    ,oo' o oooo    ,oooo' .ooooooooo. `ooooo.` oooo     ,oo'o.  
+o oooooooooooo .o'       `o. `ooooo. o oooooooooo   o oooooooooo'   .o'       `o. `ooooo.  `ooooooooo  `o. 
   	       		     	       		      	https://github.com/jcouto/labdaq  	       		     	       		      		    
 
 Tools to control daq hardware for ephys or stimulation.
@@ -35,7 +35,7 @@ These can have different units and conversion factors. Each mode can have differ
 
 **Example:**
 
-{
+```json
     "channel_modes": {
         "analog": {
             "description": "regular_output",
@@ -66,7 +66,7 @@ These can have different units and conversion factors. Each mode can have differ
             "output_units": "mV"
         }
     }
-}
+```
 
 ### channels
 
@@ -84,7 +84,7 @@ Each channel must specify:
 This is for patch clamping with the axon 700B.
 
 
-{
+```json
     "channels": [
         {
             "acq_rate": 40000,
@@ -150,7 +150,7 @@ This is for patch clamping with the axon 700B.
             "type": "axon200B_mode"
         }
     ],
-}
+```
 
 
 ## Using the command line
