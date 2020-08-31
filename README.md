@@ -1,15 +1,15 @@
-##  _       _         _             
-## | |     | |       | |            
-## | | __ _| |__   __| | __ _  __ _ 
-## | |/ _` | '_ \ / _` |/ _` |/ _` |
-## | | (_| | |_) | (_| | (_| | (_| |
-## |_|\__,_|_.__/ \__,_|\__,_|\__, |
-##                               | |
-##                               |_|
-
+    _       _         _             
+   | |     | |       | |            
+   | | __ _| |__   __| | __ _  __ _ 
+   | |/ _` | '_ \ / _` |/ _` |/ _` |
+   | | (_| | |_) | (_| | (_| | (_| |
+   |_|\__,_|_.__/ \__,_|\__,_|\__, |
+                                 | |
+                                 |_|
+    https://github.com/jcouto/labdaq
 
 								
-Tools to control daq hardware for ephys or stimulation (https://github.com/jcouto/labdaq).
+Tools to control daq hardware for ephys or stimulation.
 This is currently under development.
 
 Supported features:
