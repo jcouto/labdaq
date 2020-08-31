@@ -10,6 +10,8 @@
 
 								
 Tools to control daq hardware for ephys or stimulation.
+This aims to make easy tasks IO tasks simple and to encompass a broad range of applications.
+
 This is currently under development.
 
 Supported features:
@@ -150,6 +152,25 @@ This is for patch clamping with the axon 700B.
         }
     ],
 ```
+
+## Experiment protocol files
+
+This is meant to allow reproducible experiments without loosing flexibility. It is still being developed.
+
+Protocol files describe what is the output of analog output files, the intertrial interval and how other parameters.
+
+These are simple text files. Available options:
+
+* ``ntrials=X`` number of trials
+* ``iti=X`` inter-trial interval in seconds
+* ``analog_stim=FILE1,FILE2,FILE3`` assigns waveform files to each analog output channel
+* ``digital_stim=FILE1,FILE2,FILE3`` assigns waveform files to digital output channels
+
+Any other variable can be defined and it will be replaced in the waveform files if it is encompassed by curly brackets (like in the python strings format method).
+
+### interfacing with labcams
+
+To trigger with ``labcams`` (https://bitbucket.org/jpcouto/labcams/src/master/) add the ``labcams=ADDRESS:PORT`` line to the ``expprot`` file. Labcams will be triggered and the files will be named accordingly. 
 
 
 ## Using the command line
