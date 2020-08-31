@@ -1,15 +1,16 @@
-o oooo                  .o.          o oooooooooo   o oooooooooo.            .o.           ,oooooooo      
-o oooo                 .ooo.         o oooo    `oo. o oooo    `oooo.        .ooo.       . oooo     `oo.    
-o oooo                :ooooo.        o oooo     `oo o oooo        `oo.     :ooooo.     ,o oooo       `oo   
-o oooo               . `ooooo.       o oooo     ,oo o oooo         `oo    . `ooooo.    oo oooo        `oo  
-o oooo              .o. `ooooo.      o oooo.   ,oo' o oooo          oo   .o. `ooooo.   oo oooo         oo  
-o oooo             .o`o. `ooooo.     o oooooooooo   o oooo          oo  .o`o. `ooooo.  oo oooo     `o. oo  
-o oooo            .o' `o. `ooooo.    o oooo    `oo. o oooo         ,oo .o' `o. `ooooo. oo oooo      `o,oo  
-o oooo           .o'   `o. `ooooo.   o oooo      oo o oooo        ,oo'.o'   `o. `ooooo.`o oooo       ;oo   
-o oooo          .ooooooooo. `ooooo.  o oooo    ,oo' o oooo    ,oooo' .ooooooooo. `ooooo.` oooo     ,oo'o.  
-o oooooooooooo .o'       `o. `ooooo. o oooooooooo   o oooooooooo'   .o'       `o. `ooooo.  `ooooooooo  `o. 
-  	       		     	       		      	https://github.com/jcouto/labdaq  	       		     	       		      		    
+   o oooo                  .o.          o oooooooooo   o oooooooooo.            .o.           ,oooooooo      
+   o oooo                 .ooo.         o oooo    `oo. o oooo    `oooo.        .ooo.       . oooo     `oo.    
+   o oooo                :ooooo.        o oooo     `oo o oooo        `oo.     :ooooo.     ,o oooo       `oo   
+   o oooo               . `ooooo.       o oooo     ,oo o oooo         `oo    . `ooooo.    oo oooo        `oo  
+   o oooo              .o. `ooooo.      o oooo.   ,oo' o oooo          oo   .o. `ooooo.   oo oooo         oo  
+   o oooo             .o`o. `ooooo.     o oooooooooo   o oooo          oo  .o`o. `ooooo.  oo oooo     `o. oo  
+   o oooo            .o' `o. `ooooo.    o oooo    `oo. o oooo         ,oo .o' `o. `ooooo. oo oooo      `o,oo  
+   o oooo           .o'   `o. `ooooo.   o oooo      oo o oooo        ,oo'.o'   `o. `ooooo.`o oooo       ;oo   
+   o oooo          .ooooooooo. `ooooo.  o oooo    ,oo' o oooo    ,oooo' .ooooooooo. `ooooo.` oooo     ,oo'o.  
+   o oooooooooooo .o'       `o. `ooooo. o oooooooooo   o oooooooooo'   .o'       `o. `ooooo.  `ooooooooo  `o. 
 
+                                                                https://github.com/jcouto/labdaq
+								
 Tools to control daq hardware for ephys or stimulation.
 This is currently under development.
 
