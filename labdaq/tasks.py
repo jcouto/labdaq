@@ -8,7 +8,7 @@ class BaseTask():
         '''
         self.chaninfo = channels
         self.modeinfo = modes
-        self.srate = 0
+        self.srate = 20000
         self.mode = None # this can be used to alternate between cc or vc
         self._parse_channels()
         self._create_tasks()
@@ -209,11 +209,11 @@ def IOTask(channels,modes):
     # check the device from the first channel.
     if 'ni:' in channels[0]['device']:
         try:
-            from .nidaq import IOTaskNidaq
+            from .nidaq import IOTask
         except Exception as E:
             print(E)
             raise OSError(NIDAQERRORMSG)
-        return IOTaskNidaq(channels,modes)
+        return IOTask(channels,modes)
     elif 'mcc:' in channels[0]['device']:
         raise OSError(MCCDAQERRORMSG)
     elif 'dummy:' in channels[0]['device']:

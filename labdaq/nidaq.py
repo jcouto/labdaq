@@ -8,13 +8,13 @@ from nidaqmx.stream_readers import AnalogMultiChannelReader
 from nidaqmx.stream_writers import DigitalMultiChannelWriter
 
 
-class IOTaskNidaq(BaseTask):
+class IOTask(BaseTask):
     # This is only nidaq for now.
     def __init__(self,channels,modes):
         '''
         IOTask for using nidaqmx cards on Windows.
         '''
-        super(IOTaskNidaq,self).__init__(channels,modes)
+        super(IOTask,self).__init__(channels,modes)
         self.buff_dtype = np.float64        
         
     def _create_tasks(self):
@@ -96,6 +96,7 @@ class IOTaskNidaq(BaseTask):
         self.nsamples = int(np.max([np.max(s.shape)
                                     for s in stim if not s is None]))
         aoconversion = self._get_conversion(False)
+        aiconversion = self._get_conversion(True)
             
         if not self.task_ai is None and self.task_ao is None:
             self.task_ai.timing.cfg_samp_clk_timing(
@@ -171,6 +172,7 @@ class IOTaskNidaq(BaseTask):
         self.acquired = False
 
     def _run(self, blocking = True):
+        aiconversion = self._get_conversion(True)
         #self.task_ao.ao_channels.all.ao_dac_ref_allow_conn_to_gnd = True
         if not self.task_ai is None:
             self.task_ai.start()
