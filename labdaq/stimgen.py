@@ -13,6 +13,21 @@ codes_doc = '''
        - 7 - Ramp waveform              | p1 - start amp | p2 - end amp
 '''
 
+def sqsine_ramp(duration,
+                frequency,
+                sampling_rate,
+                pre_ramp = 0,
+                post_ramp = 0,
+                **kwargs):
+    t = np.linspace(0,duration,int(duration*sampling_rate))
+    waveform = np.sin(frequency*np.pi*t)**2
+    ramp = np.ones_like(t)
+    if pre_ramp>0:
+        ramp[(t<(pre_ramp))] = (1/pre_ramp)*t[(t<(pre_ramp))] 
+    if post_ramp>0:
+        ramp[(t>(duration-post_ramp))] = (1/post_ramp)*t[(t<(post_ramp))][::-1] 
+    return waveform*ramp
+
 def stimgen_subwaveform(duration,
                         code,
                         p1=0,
