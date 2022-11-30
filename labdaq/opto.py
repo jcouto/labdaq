@@ -25,29 +25,32 @@ class TriggeredOptogeneticsWaveform():
         self.waveform_parameters = None
         self.loaded = False
         self.trigger_task = False
-
+        self.waveform = None
+        
     def load(self,
              generator = 'sqsine',
              duration = 1,
              amplitude = 1,
              frequency = 40,
              pre_ramp = 0,
-             post_ramp = 0.5,
+             post_ramp = 0.25,
              trigger = False,
              trigger_retriggerable = False,
              **kwargs):
         self.waveform = None
         self.loaded = False
+        self.waveform_parameters = dict(generator = generator,
+                                        duration = duration,
+                                        amplitude = amplitude,
+                                        frequency = frequency,
+                                        pre_ramp = pre_ramp,
+                                        post_ramp = post_ramp,
+                                        sampling_rate = self.sampling_rate,
+                                        **kwargs)
         if generator == 'sqsine':
-            self.waveform_parameters = dict(generator = generator,
-                                            duration = duration,
-                                            amplitude = amplitude,
-                                            frequency = frequency,
-                                            pre_ramp = pre_ramp,
-                                            post_ramp = post_ramp,
-                                            sampling_rate = self.sampling_rate,
-                                            **kwargs)
             self.waveform = self.waveform_parameters['amplitude']*sqsine_ramp(**self.waveform_parameters)
+        elif generator == 'pulse':
+            self.waveform = self.waveform_parameters['amplitude']*pulse_ramp(**self.waveform_parameters)
         else:
             raise(ValueError('Could not load waveform. Unknown generator {0}'.format(generator)))
         #self.task_ao.export_signals.export_signal(nidaqmx.constants.Signal.SAMPLE_CLOCK, 'PFI0')
