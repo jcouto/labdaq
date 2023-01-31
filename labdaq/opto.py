@@ -105,10 +105,10 @@ class TriggeredOptogeneticsWaveform():
             self.task_ao.triggers.start_trigger.cfg_dig_edge_start_trig(
                 trigger_source = self.trigger_channel,
                 trigger_edge=self.constants.Edge.RISING)
-            try:
-                self.task_ao.triggers.start_trigger.retriggerable = trigger_retriggerable
-            except self.DaqError as err:
-                print(err)
+            #try:
+            #    self.task_ao.triggers.start_trigger.retriggerable = trigger_retriggerable
+            #except self.DaqError as err:
+            #    print(err)
             self.trigger_task = True
         else:
             self.trigger_task = False
