@@ -124,6 +124,15 @@ class TriggeredOptogeneticsWaveform():
                 print('Task not started because it is still running.')
         else:
             print('This is a trigger task.')
+    def write_value(self,value):
+        self.task_ao.stop()
+        samples = np.ones(10)*value
+        self.task_ao.timing.cfg_samp_clk_timing(
+            rate = self.sampling_rate,
+            samps_per_chan = len(samples))
+
+        self.task_ao.write(samples,auto_start=True)
+        
     def stop(self):
         self.task_ao.stop()
     
