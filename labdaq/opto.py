@@ -88,7 +88,7 @@ class TriggeredOptogeneticsWaveform():
     def load(self,
              waveform = None,
              trigger = False,
-             trigger_retriggerable = True,
+             trigger_retriggerable = False,
              **kwargs):
         self.loaded = False
         if waveform is None:
@@ -106,7 +106,8 @@ class TriggeredOptogeneticsWaveform():
                 trigger_source = self.trigger_channel,
                 trigger_edge=self.constants.Edge.RISING)
             try:
-                self.task_ao.triggers.start_trigger.retriggerable = trigger_retriggerable
+                if trigger_retriggerable:
+                    self.task_ao.triggers.start_trigger.retriggerable = trigger_retriggerable
             except self.DaqError as err:
                 print(err)
             self.trigger_task = True
