@@ -105,7 +105,8 @@ class TriggeredOptogeneticsWaveform():
             self.task_ao.triggers.start_trigger.cfg_dig_edge_start_trig(
                 trigger_source = self.trigger_channel,
                 trigger_edge=self.constants.Edge.RISING)
-            self.trigger_task = False
+            print('Setting trigger as {0}'.format(self.trigger_channel))
+            self.trigger_task = True
             try:
                 if trigger_retriggerable:
                     self.task_ao.triggers.start_trigger.retriggerable = trigger_retriggerable
