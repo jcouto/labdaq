@@ -105,12 +105,12 @@ class TriggeredOptogeneticsWaveform():
             self.task_ao.triggers.start_trigger.cfg_dig_edge_start_trig(
                 trigger_source = self.trigger_channel,
                 trigger_edge=self.constants.Edge.RISING)
+            self.trigger_task = False
             try:
                 if trigger_retriggerable:
                     self.task_ao.triggers.start_trigger.retriggerable = trigger_retriggerable
             except self.DaqError as err:
                 print(err)
-            self.trigger_task = True
         else:
             self.trigger_task = False
         self.task_ao.write(self.waveform,auto_start=self.trigger_task)
@@ -125,6 +125,15 @@ class TriggeredOptogeneticsWaveform():
                 print('Task not started because it is still running.')
         else:
             print('This is a trigger task.')
+    def write_value(self,value):
+        self.task_ao.stop()
+        samples = np.ones(10)*value
+        self.task_ao.timing.cfg_samp_clk_timing(
+            rate = self.sampling_rate,
+            samps_per_chan = len(samples))
+
+        self.task_ao.write(samples,auto_start=True)
+        
     def stop(self):
         self.task_ao.stop()
     
