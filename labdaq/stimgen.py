@@ -33,17 +33,21 @@ def pulse_ramp(duration,
                sampling_rate,
                pre_ramp = 0,
                post_ramp = 0,
+               delay = 0,
                **kwargs):
-    t = np.linspace(0,duration,int(duration*sampling_rate))
+    t = np.linspace(-delay,duration,int((duration+delay)*sampling_rate))
     waveform = np.ones_like(t)
     ramp = np.ones_like(t)
+    ramp[(t<0)] = 0 # delay is zero
+    
     if pre_ramp>0:
-        ramp[(t<(pre_ramp))] = (1/pre_ramp)*t[(t<(pre_ramp))] 
+        tt = t[(t>0) & (t<(pre_ramp))]
+        ramp[(t>0) & (t<(pre_ramp))] = (1/pre_ramp)*(tt-tt[0])
     if post_ramp>0:
-        ramp[(t>(duration-post_ramp))] = (1/post_ramp)*t[(t<(post_ramp))][::-1]
+        tt = t[(t>(duration-post_ramp))]
+        ramp[(t>(duration-post_ramp))] = (1/post_ramp)*(tt[::-1]-tt[0])
     ramp[-1] = 0 # make sure last is zero
     return waveform*ramp
-
 
 def stimgen_subwaveform(duration,
                         code,
